@@ -16,7 +16,7 @@ jobs:
       pull-requests: write
     defaults:
       run:
-        shell: pwsh
+        shell: powershell
     env:
       PR: ${{ github.event.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
