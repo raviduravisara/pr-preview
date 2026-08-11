@@ -1,0 +1,69 @@
+# Secrets — never commit. Spec section 6.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets.yaml
+secrets.yml
+
+# Kubernetes access
+kubeconfig
+kubeconfig*
+*.kubeconfig
+.kube/
+
+# Cloudflare tunnel credentials
+*.tunnel.json
+cert.pem
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+bin/
+dist/
+
+# Helm
+charts/**/charts/
+*.tgz
+
+# Terraform, if added later
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# Local scratch — personal notes, experiments, throwaway files
+scratch/
+notes/
+tmp/
+*.local.md
+TODO.local.md
+
+# Personal planning docs — kept local, not part of the repo
+devops new.md
+PLAN.md
+TECH-STACK.md
+GIT-GUIDE.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor directories belong in the global gitignore, not here — spec section 5.
+# git config --global core.excludesFile "$HOME/.gitignore_global"
