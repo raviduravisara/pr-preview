@@ -1,0 +1,50 @@
+name: preview-deploy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        shell: powershell
+    env:
+      PR: ${{ github.event.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t pr-preview-app:pr-${{ env.PR }}-${{ env.SHA }} ./app
+
+      - name: Import image into cluster
+        run: k3d image import pr-preview-app:pr-${{ env.PR }}-${{ env.SHA }} -c preview
+
+      - name: Deploy
+        run: helm upgrade --install pr-${{ env.PR }} ./charts/preview --namespace pr-${{ env.PR }} --create-namespace --set prNumber=${{ env.PR }} --set gitSha=${{ env.SHA }} --set image.tag=pr-${{ env.PR }}-${{ env.SHA }} --wait --timeout 3m
+
+      - name: Comment preview URL
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: preview
+          message: |
+            **Preview environment is live**
+
+            https://pr-${{ env.PR }}-preview.ravidu.space
+
+            | | |
+            |---|---|
+            | Commit | `${{ env.SHA }}` |
+            | Namespace | `pr-${{ env.PR }}` |
+            | Updated | ${{ github.event.pull_request.updated_at }} |
+
+            Destroyed automatically when this PR closes.

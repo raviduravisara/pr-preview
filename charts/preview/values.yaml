@@ -10,9 +10,11 @@ image:
 replicaCount: 1
 
 ingress:
-  # Full host is <prefix><prNumber>.<domain>
-  domain: localhost
+  # Full host is <prefix><prNumber><suffix>.<domain>
+  # Single subdomain level keeps it inside Cloudflare's free wildcard certificate.
+  domain: ravidu.space
   prefix: pr-
+  suffix: -preview
 
 resources:
   requests:

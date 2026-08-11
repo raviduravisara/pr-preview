@@ -19,6 +19,8 @@ kubeconfig*
 # Cloudflare tunnel credentials
 *.tunnel.json
 cert.pem
+.cloudflared/
+tunnel-credentials*.json
 
 # Go
 *.exe
@@ -42,6 +44,9 @@ charts/**/charts/
 .terraform/
 *.tfvars
 !*.tfvars.example
+
+# GitHub Actions self-hosted runner — installed outside the repo
+actions-runner/
 
 # Local scratch — personal notes, experiments, throwaway files
 scratch/

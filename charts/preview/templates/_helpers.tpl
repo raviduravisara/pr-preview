@@ -3,7 +3,7 @@ app
 {{- end -}}
 
 {{- define "preview.host" -}}
-{{ .Values.ingress.prefix }}{{ required "prNumber is required" .Values.prNumber }}.{{ .Values.ingress.domain }}
+{{ .Values.ingress.prefix }}{{ required "prNumber is required" .Values.prNumber }}{{ .Values.ingress.suffix }}.{{ .Values.ingress.domain }}
 {{- end -}}
 
 {{- define "preview.labels" -}}
