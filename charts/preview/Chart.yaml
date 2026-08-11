@@ -1,0 +1,6 @@
+apiVersion: v2
+name: preview
+description: One ephemeral preview environment for a pull request
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

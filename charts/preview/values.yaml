@@ -1,0 +1,22 @@
+prNumber: ""
+gitSha: dev
+bgColor: "#1a4d8f"
+
+image:
+  repository: pr-preview-app
+  tag: dev
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+ingress:
+  # Full host is <prefix><prNumber>.<domain>
+  domain: localhost
+  prefix: pr-
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi
