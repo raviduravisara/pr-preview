@@ -10,11 +10,15 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    defaults:
+      run:
+        shell: pwsh
     env:
       PR: ${{ github.event.number }}
     steps:
       - name: Uninstall release
-        run: helm uninstall pr-${{ env.PR }} --namespace pr-${{ env.PR }} --ignore-not-found
+        run: helm uninstall pr-${{ env.PR }} --namespace pr-${{ env.PR }} --wait
+        continue-on-error: true
 
       - name: Delete namespace
         run: kubectl delete namespace pr-${{ env.PR }} --ignore-not-found

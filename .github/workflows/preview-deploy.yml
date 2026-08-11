@@ -14,6 +14,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    defaults:
+      run:
+        shell: pwsh
     env:
       PR: ${{ github.event.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
@@ -27,13 +30,7 @@ jobs:
         run: k3d image import pr-preview-app:pr-${{ env.PR }}-${{ env.SHA }} -c preview
 
       - name: Deploy
-        run: |
-          helm upgrade --install pr-${{ env.PR }} ./charts/preview \
-            --namespace pr-${{ env.PR }} --create-namespace \
-            --set prNumber=${{ env.PR }} \
-            --set gitSha=${{ env.SHA }} \
-            --set image.tag=pr-${{ env.PR }}-${{ env.SHA }} \
-            --wait --timeout 3m
+        run: helm upgrade --install pr-${{ env.PR }} ./charts/preview --namespace pr-${{ env.PR }} --create-namespace --set prNumber=${{ env.PR }} --set gitSha=${{ env.SHA }} --set image.tag=pr-${{ env.PR }}-${{ env.SHA }} --wait --timeout 3m
 
       - name: Comment preview URL
         uses: marocchino/sticky-pull-request-comment@v2
