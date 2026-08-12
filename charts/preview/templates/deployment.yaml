@@ -28,6 +28,11 @@ spec:
               value: {{ .Values.gitSha | quote }}
             - name: BG_COLOR
               value: {{ .Values.bgColor | quote }}
+            {{- if .Values.postgres.enabled }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: postgres, key: url }
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /healthz

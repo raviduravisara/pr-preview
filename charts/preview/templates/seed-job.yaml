@@ -1,0 +1,57 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seed
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+data:
+  seed.sql: |
+{{ .Files.Get "seed/seed.sql" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seed-{{ .Release.Revision }}
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "preview.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: {{ .Values.postgres.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -U "$PGUSER" -d "$PGDATABASE"; do
+                echo "waiting for postgres"; sleep 2
+              done
+              psql -h postgres -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f /seed/seed.sql
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef: { name: postgres, key: username }
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres, key: password }
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef: { name: postgres, key: database }
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+      volumes:
+        - name: seed
+          configMap:
+            name: seed
+{{- end }}
