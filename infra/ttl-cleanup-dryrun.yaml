@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ttl-dryrun
+  namespace: preview-system
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: ttl-cleanup
+      restartPolicy: Never
+      containers:
+        - name: ttl-cleanup
+          image: pr-preview-ttl-cleanup:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TTL
+              value: "1s"
+            - name: DRY_RUN
+              value: "true"
