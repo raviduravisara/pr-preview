@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: preview-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ttl-cleanup
+  namespace: preview-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ttl-cleanup
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ttl-cleanup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ttl-cleanup
+subjects:
+  - kind: ServiceAccount
+    name: ttl-cleanup
+    namespace: preview-system
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ttl-cleanup
+  namespace: preview-system
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: ttl-cleanup
+          restartPolicy: OnFailure
+          containers:
+            - name: ttl-cleanup
+              image: pr-preview-ttl-cleanup:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: TTL
+                  value: "48h"
+                - name: DRY_RUN
+                  value: "false"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi

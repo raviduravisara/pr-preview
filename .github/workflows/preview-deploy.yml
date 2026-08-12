@@ -32,6 +32,9 @@ jobs:
       - name: Deploy
         run: helm upgrade --install pr-${{ env.PR }} ./charts/preview --namespace pr-${{ env.PR }} --create-namespace --set prNumber=${{ env.PR }} --set gitSha=${{ env.SHA }} --set image.tag=pr-${{ env.PR }}-${{ env.SHA }} --wait --timeout 3m
 
+      - name: Stamp last-deploy time
+        run: kubectl annotate namespace pr-${{ env.PR }} preview.ravidu.space/last-deploy=$([DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")) --overwrite
+
       - name: Comment preview URL
         uses: marocchino/sticky-pull-request-comment@v2
         with:
