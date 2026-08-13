@@ -8,12 +8,22 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 repo=$(git rev-parse --show-toplevel)
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
 
-# Scan the staging area itself. `git --staged` scans commits, which is empty at
-# pre-commit time; `protect --staged` reads the index, which is the point.
-# MSYS_NO_PATHCONV stops Git Bash rewriting the container-side /repo path.
-MSYS_NO_PATHCONV=1 docker run --rm -v "$repo:/repo" -w /repo \
-  zricethezav/gitleaks:latest protect --staged --redact --no-banner
+# Copy the staged content to a scratch dir and scan that, so the hook sees exactly
+# what is about to be committed rather than the working tree or the commit history.
+# `protect --staged` is deprecated in gitleaks v8.19+ and silently scans commits instead.
+scan=$(mktemp -d)
+trap 'rm -rf "$scan"' EXIT
+
+echo "$staged" | while IFS= read -r file; do
+  mkdir -p "$scan/$(dirname "$file")"
+  git show ":$file" > "$scan/$file" 2>/dev/null
+done
+
+MSYS_NO_PATHCONV=1 docker run --rm -v "$scan:/scan" -w /scan \
+  zricethezav/gitleaks:latest dir /scan --redact --no-banner
 status=$?
 
 if [ $status -ne 0 ]; then

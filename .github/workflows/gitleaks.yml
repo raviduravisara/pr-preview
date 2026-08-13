@@ -17,4 +17,4 @@ jobs:
           fetch-depth: 0
 
       - name: Scan full history for secrets
-        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo zricethezav/gitleaks:latest git --redact --verbose
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo zricethezav/gitleaks:latest git /repo --redact --verbose
