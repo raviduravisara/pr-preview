@@ -1,0 +1,38 @@
+#!/bin/sh
+# Blocks a commit containing anything gitleaks recognises as a secret.
+# Install with scripts/install-hooks.ps1
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "pre-commit: docker not found, skipping secret scan" >&2
+  exit 0
+fi
+
+repo=$(git rev-parse --show-toplevel)
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# Copy the staged content to a scratch dir and scan that, so the hook sees exactly
+# what is about to be committed rather than the working tree or the commit history.
+# `protect --staged` is deprecated in gitleaks v8.19+ and silently scans commits instead.
+scan=$(mktemp -d)
+trap 'rm -rf "$scan"' EXIT
+
+echo "$staged" | while IFS= read -r file; do
+  mkdir -p "$scan/$(dirname "$file")"
+  git show ":$file" > "$scan/$file" 2>/dev/null
+done
+
+MSYS_NO_PATHCONV=1 docker run --rm -v "$scan:/scan" -w /scan \
+  zricethezav/gitleaks:latest dir /scan --redact --no-banner
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: gitleaks found a secret in the staged changes. Commit blocked." >&2
+  echo "Rotate the credential first — removing it from the diff is not enough if it" >&2
+  echo "was ever real. Bypass only if this is a confirmed false positive:" >&2
+  echo "  git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0
