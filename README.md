@@ -93,6 +93,7 @@ at the edge, so preview URLs get a valid certificate for free.
 | PostgreSQL | One instance per namespace, credentials generated at deploy time |
 | Seed Job | Creates the schema and fixture rows once Postgres is accepting connections |
 | TTL CronJob | Deletes preview namespaces idle longer than 48h |
+| ResourceQuota | Caps what one preview may consume, so a runaway PR cannot starve the cluster |
 
 ---
 
@@ -161,6 +162,27 @@ rules:
 
 `DRY_RUN=true` reports what it would remove without removing anything —
 `infra/ttl-cleanup-dryrun.yaml` runs it that way with a 1-second TTL.
+
+---
+
+## What a preview environment costs
+
+Measured on a live environment with `kubectl describe resourcequota`:
+
+| Resource | Used | Namespace ceiling |
+|----------|------|-------------------|
+| CPU requests | 35m | 1 |
+| Memory requests | 80Mi | 512Mi |
+| Memory limits | 320Mi | 1Gi |
+| Pods | 2 | 10 |
+
+35 millicores is 3.5% of a single core, so concurrency is bounded by memory rather than CPU
+— roughly a dozen simultaneous previews on a modest workstation.
+
+Every namespace carries a `ResourceQuota` and a `LimitRange`. The quota is the ceiling; the
+LimitRange supplies defaults for containers that do not declare their own requests, which is
+not optional once a quota exists — Kubernetes rejects unspecified containers outright, so
+adding a quota without a LimitRange breaks every workload that forgot to set them.
 
 ---
 
@@ -279,7 +301,7 @@ a DNS record.
 ## Status
 
 Working: per-PR environments with isolated databases, automatic teardown on close, TTL
-reaping of idle namespaces, sticky PR comments, secret scanning in CI.
+reaping of idle namespaces, resource quotas, sticky PR comments, secret scanning in CI.
 
-Next: resource quotas per namespace, a gitleaks pre-commit hook, and a Prometheus/Grafana
-dashboard reporting what a preview environment actually costs in CPU and memory.
+Next: a gitleaks pre-commit hook for local secret scanning, and a Prometheus/Grafana
+dashboard tracking per-namespace resource use over time.
