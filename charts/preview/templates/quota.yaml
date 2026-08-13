@@ -1,0 +1,29 @@
+{{- if .Values.quota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: preview
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+spec:
+  hard:
+    requests.cpu: {{ .Values.quota.requests.cpu | quote }}
+    requests.memory: {{ .Values.quota.requests.memory | quote }}
+    limits.memory: {{ .Values.quota.limits.memory | quote }}
+    pods: {{ .Values.quota.pods | quote }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: preview
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        memory: {{ .Values.quota.defaultLimits.memory | quote }}
+      defaultRequest:
+        cpu: {{ .Values.quota.defaultRequests.cpu | quote }}
+        memory: {{ .Values.quota.defaultRequests.memory | quote }}
+{{- end }}
