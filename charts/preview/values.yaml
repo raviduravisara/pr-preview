@@ -23,6 +23,23 @@ resources:
   limits:
     memory: 64Mi
 
+# Ceiling for one preview environment. Sized with headroom over the app + postgres
+# requests below so the seed job, which runs alongside both, still fits.
+quota:
+  enabled: true
+  pods: 10
+  requests:
+    cpu: "1"
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+  # Applied to any container that does not set its own.
+  defaultRequests:
+    cpu: 10m
+    memory: 16Mi
+  defaultLimits:
+    memory: 128Mi
+
 postgres:
   enabled: true
   image: postgres:17-alpine
