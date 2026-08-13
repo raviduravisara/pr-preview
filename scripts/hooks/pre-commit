@@ -1,0 +1,28 @@
+#!/bin/sh
+# Blocks a commit containing anything gitleaks recognises as a secret.
+# Install with scripts/install-hooks.ps1
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "pre-commit: docker not found, skipping secret scan" >&2
+  exit 0
+fi
+
+repo=$(git rev-parse --show-toplevel)
+
+# Scan the staging area itself. `git --staged` scans commits, which is empty at
+# pre-commit time; `protect --staged` reads the index, which is the point.
+# MSYS_NO_PATHCONV stops Git Bash rewriting the container-side /repo path.
+MSYS_NO_PATHCONV=1 docker run --rm -v "$repo:/repo" -w /repo \
+  zricethezav/gitleaks:latest protect --staged --redact --no-banner
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "" >&2
+  echo "pre-commit: gitleaks found a secret in the staged changes. Commit blocked." >&2
+  echo "Rotate the credential first — removing it from the diff is not enough if it" >&2
+  echo "was ever real. Bypass only if this is a confirmed false positive:" >&2
+  echo "  git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0

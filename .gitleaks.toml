@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Helm templates reference secret keys but never contain values"
+paths = [
+  '''charts/preview/templates/postgres-secret\.yaml''',
+]

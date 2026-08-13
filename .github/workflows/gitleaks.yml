@@ -1,0 +1,20 @@
+name: gitleaks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan full history for secrets
+        run: docker run --rm -v "${{ github.workspace }}:/repo" -w /repo zricethezav/gitleaks:latest git --redact --verbose
