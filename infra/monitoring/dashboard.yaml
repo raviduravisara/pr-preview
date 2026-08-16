@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-previews
+  namespace: preview-system
+data:
+  previews.json: |
+    {
+      "title": "Preview Environments",
+      "uid": "previews",
+      "timezone": "browser",
+      "refresh": "30s",
+      "time": { "from": "now-3h", "to": "now" },
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Live preview environments",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "count(kube_namespace_created{namespace=~\"pr-.*\"}) or vector(0)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Total CPU (cores)",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"pr-.*\",container!=\"\"}[5m])) or vector(0)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "decimals": 3, "color": { "mode": "fixed", "fixedColor": "green" } }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Total memory",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=~\"pr-.*\",container!=\"\"}) or vector(0)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "bytes", "color": { "mode": "fixed", "fixedColor": "purple" } }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Pods across previews",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "targets": [
+            {
+              "expr": "count(kube_pod_info{namespace=~\"pr-.*\"}) or vector(0)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } }
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "CPU by preview namespace",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+          "targets": [
+            {
+              "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"pr-.*\",container!=\"\"}[5m]))",
+              "legendFormat": "{{namespace}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "short", "decimals": 3 } }
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory by preview namespace",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+          "targets": [
+            {
+              "expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"pr-.*\",container!=\"\"})",
+              "legendFormat": "{{namespace}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": { "defaults": { "unit": "bytes" } }
+        },
+        {
+          "type": "timeseries",
+          "title": "Environment lifecycle — namespaces over time",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
+          "description": "Each step up is a PR opening, each step down is one closing or being reaped by the TTL job.",
+          "targets": [
+            {
+              "expr": "count(kube_namespace_created{namespace=~\"pr-.*\"}) or vector(0)",
+              "legendFormat": "live previews",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "fillOpacity": 20, "lineInterpolation": "stepAfter" }
+            }
+          }
+        }
+      ]
+    }
