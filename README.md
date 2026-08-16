@@ -94,6 +94,7 @@ at the edge, so preview URLs get a valid certificate for free.
 | Seed Job | Creates the schema and fixture rows once Postgres is accepting connections |
 | TTL CronJob | Deletes preview namespaces idle longer than 48h |
 | ResourceQuota | Caps what one preview may consume, so a runaway PR cannot starve the cluster |
+| Prometheus + Grafana | Per-namespace CPU and memory, and how many previews are live over time |
 
 ---
 
@@ -167,22 +168,37 @@ rules:
 
 ## What a preview environment costs
 
-Measured on a live environment with `kubectl describe resourcequota`:
+Reserved per namespace, via `kubectl describe resourcequota`:
 
-| Resource | Used | Namespace ceiling |
-|----------|------|-------------------|
+| Resource | Requested | Namespace ceiling |
+|----------|-----------|-------------------|
 | CPU requests | 35m | 1 |
 | Memory requests | 80Mi | 512Mi |
 | Memory limits | 320Mi | 1Gi |
 | Pods | 2 | 10 |
 
-35 millicores is 3.5% of a single core, so concurrency is bounded by memory rather than CPU
-— roughly a dozen simultaneous previews on a modest workstation.
+Actually consumed, measured in Grafana with two idle environments running: **~54 MiB and
+under 0.002 cores each**. Idle previews cost almost nothing in CPU; concurrency is bounded
+by memory, which puts roughly a dozen simultaneous environments on a modest workstation.
 
 Every namespace carries a `ResourceQuota` and a `LimitRange`. The quota is the ceiling; the
 LimitRange supplies defaults for containers that do not declare their own requests, which is
 not optional once a quota exists — Kubernetes rejects unspecified containers outright, so
 adding a quota without a LimitRange breaks every workload that forgot to set them.
+
+### Monitoring
+
+Prometheus scrapes cAdvisor for per-container CPU and memory and kube-state-metrics for
+namespace and pod state, with seven days of retention. Grafana provisions its datasource and
+dashboard from ConfigMaps, so the stack comes up ready rather than needing manual setup:
+
+```powershell
+kubectl apply -f infra/monitoring/
+```
+
+The dashboard reports live environment count, total and per-namespace CPU and memory, and a
+step graph of previews over time — each step up is a PR opening, each step down is one
+closing or being reaped.
 
 ---
 
@@ -276,6 +292,12 @@ connection timeout. Pointing the cluster at `https://127.0.0.1:<port>` avoids th
 PersistentVolumeClaim. Preview data is disposable by definition, and PVCs would outlive the
 namespaces that created them.
 
+**`nodes/metrics` is not `nodes/proxy`.** Prometheus scraped kube-state-metrics happily but
+got `403 Forbidden` on every cAdvisor target. Reaching a kubelet endpoint *through the API
+server* is a proxy operation, so it needs the `nodes/proxy` subresource — granting
+`nodes/metrics` alone is not enough. The dashboard rendered with pod counts but empty CPU
+and memory panels, which made it look like a query problem rather than a permissions one.
+
 ---
 
 ## Cost
@@ -300,8 +322,6 @@ a DNS record.
 
 ## Status
 
-Working: per-PR environments with isolated databases, automatic teardown on close, TTL
-reaping of idle namespaces, resource quotas, sticky PR comments, secret scanning in CI.
-
-Next: a gitleaks pre-commit hook for local secret scanning, and a Prometheus/Grafana
-dashboard tracking per-namespace resource use over time.
+Feature-complete. Per-PR environments with isolated databases, automatic teardown on close,
+TTL reaping of idle namespaces, resource quotas, sticky PR comments, secret scanning at two
+layers, and a Grafana dashboard reporting what it all costs.
