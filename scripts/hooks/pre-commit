@@ -23,7 +23,7 @@ echo "$staged" | while IFS= read -r file; do
 done
 
 MSYS_NO_PATHCONV=1 docker run --rm -v "$scan:/scan" -w /scan \
-  zricethezav/gitleaks:latest dir /scan --redact --no-banner
+  zricethezav/gitleaks:v8.30.1 dir /scan --redact --no-banner
 status=$?
 
 if [ $status -ne 0 ]; then
