@@ -1,6 +1,6 @@
 prNumber: ""
 gitSha: dev
-bgColor: "#1a4d8f"
+bgColor: "#1e7a3c"
 
 image:
   repository: pr-preview-app
