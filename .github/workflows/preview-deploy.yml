@@ -12,6 +12,13 @@ concurrency:
   group: preview-${{ github.event.number }}
   cancel-in-progress: true
 
+# A called workflow cannot request more than the caller holds, and this repository
+# defaults to read-only tokens.
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
 jobs:
   preview:
     uses: ./.github/workflows/preview.yml
