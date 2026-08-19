@@ -54,6 +54,11 @@ on:
         required: false
         default: ""
         type: string
+      registry-host:
+        description: Registry hostname to authenticate against, e.g. ghcr.io
+        required: false
+        default: ghcr.io
+        type: string
       cluster:
         description: k3d cluster name, used only when registry is empty
         required: false
@@ -111,7 +116,7 @@ jobs:
         if: inputs.registry != ''
         uses: docker/login-action@v3
         with:
-          registry: ${{ split(inputs.registry, '/')[0] }}
+          registry: ${{ inputs.registry-host }}
           username: ${{ github.actor }}
           password: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
 
