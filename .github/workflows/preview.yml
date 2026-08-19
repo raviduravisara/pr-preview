@@ -1,0 +1,200 @@
+name: preview
+
+# Reusable workflow. Call it from any repository:
+#
+#   jobs:
+#     preview:
+#       uses: raviduravisara/pr-preview/.github/workflows/preview.yml@v1
+#       with:
+#         domain: preview.example.com
+#         app-path: ./
+#         app-port: 3000
+#         database: postgres
+
+on:
+  workflow_call:
+    inputs:
+      domain:
+        description: Domain previews are served under. Host becomes pr-<n>-preview.<domain>
+        required: false
+        default: ""
+        type: string
+      host-ip:
+        description: Machine IP for sslip.io URLs. Used when domain is empty; needs no domain or DNS.
+        required: false
+        default: ""
+        type: string
+      app-path:
+        description: Directory containing the Dockerfile
+        required: false
+        default: ./
+        type: string
+      app-port:
+        description: Port the application listens on
+        required: false
+        default: 8080
+        type: number
+      health-path:
+        description: HTTP path for readiness and liveness probes. Empty disables probes.
+        required: false
+        default: /healthz
+        type: string
+      database:
+        description: postgres, mysql, mongodb, or none
+        required: false
+        default: none
+        type: string
+      seed-file:
+        description: File in charts/preview/seed/ to run once the database is ready
+        required: false
+        default: ""
+        type: string
+      registry:
+        description: Image registry, e.g. ghcr.io/owner. Empty builds locally and imports into the cluster.
+        required: false
+        default: ""
+        type: string
+      cluster:
+        description: k3d cluster name, used only when registry is empty
+        required: false
+        default: preview
+        type: string
+      runs-on:
+        description: Runner label. Must reach the cluster when registry is empty.
+        required: false
+        default: self-hosted
+        type: string
+      chart-ref:
+        description: Git ref of the pr-preview chart to deploy
+        required: false
+        default: main
+        type: string
+    secrets:
+      registry-token:
+        description: Token for pushing to the registry. Defaults to GITHUB_TOKEN for ghcr.io.
+        required: false
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+    env:
+      PR: ${{ github.event.number }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v4
+
+      - name: Checkout chart
+        uses: actions/checkout@v4
+        with:
+          repository: raviduravisara/pr-preview
+          ref: ${{ inputs.chart-ref }}
+          path: .preview-chart
+
+      - name: Resolve image reference
+        id: image
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.registry }}" ]; then
+            echo "repo=${{ inputs.registry }}/$(echo '${{ github.repository }}' | cut -d/ -f2)" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=preview-$(echo '${{ github.repository }}' | cut -d/ -f2)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=pr-${PR}-${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        if: inputs.registry != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ split(inputs.registry, '/')[0] }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        run: docker build -t ${{ steps.image.outputs.repo }}:${{ steps.image.outputs.tag }} ${{ inputs.app-path }}
+
+      - name: Push image
+        if: inputs.registry != ''
+        run: docker push ${{ steps.image.outputs.repo }}:${{ steps.image.outputs.tag }}
+
+      - name: Import image into cluster
+        if: inputs.registry == ''
+        run: k3d image import ${{ steps.image.outputs.repo }}:${{ steps.image.outputs.tag }} -c ${{ inputs.cluster }}
+
+      - name: Deploy
+        shell: bash
+        run: |
+          helm upgrade --install pr-${PR} .preview-chart/charts/preview \
+            --namespace pr-${PR} --create-namespace \
+            --set prNumber=${PR} \
+            --set gitSha=${SHA} \
+            --set image.repository=${{ steps.image.outputs.repo }} \
+            --set image.tag=${{ steps.image.outputs.tag }} \
+            --set app.port=${{ inputs.app-port }} \
+            --set app.healthPath='${{ inputs.health-path }}' \
+            --set ingress.domain='${{ inputs.domain }}' \
+            --set ingress.hostIP='${{ inputs.host-ip }}' \
+            --set database.type=${{ inputs.database }} \
+            --set database.seedFile='${{ inputs.seed-file }}' \
+            --wait --timeout 5m
+
+      - name: Resolve preview URL
+        id: url
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.domain }}" ]; then
+            echo "url=https://pr-${PR}-preview.${{ inputs.domain }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=http://pr-${PR}-preview.$(echo '${{ inputs.host-ip }}' | tr '.' '-').sslip.io:8080" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stamp last-deploy time
+        shell: bash
+        run: kubectl annotate namespace pr-${PR} preview.dev/last-deploy="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite
+
+      - name: Comment preview URL
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: preview
+          message: |
+            **Preview environment is live**
+
+            ${{ steps.url.outputs.url }}
+
+            | | |
+            |---|---|
+            | Commit | `${{ env.SHA }}` |
+            | Namespace | `pr-${{ env.PR }}` |
+            | Database | `${{ inputs.database }}` |
+
+            Destroyed automatically when this PR closes.
+
+  destroy:
+    if: github.event.action == 'closed'
+    runs-on: ${{ inputs.runs-on }}
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PR: ${{ github.event.number }}
+    steps:
+      - name: Uninstall release
+        run: helm uninstall pr-${{ env.PR }} --namespace pr-${{ env.PR }} --wait
+        continue-on-error: true
+
+      - name: Delete namespace
+        run: kubectl delete namespace pr-${{ env.PR }} --ignore-not-found
+
+      - name: Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: preview
+          message: |
+            **Preview environment destroyed**
+
+            Namespace `pr-${{ env.PR }}` and all its resources have been removed.

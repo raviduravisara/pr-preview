@@ -1,4 +1,4 @@
-{{- if .Values.postgres.enabled }}
+{{- if and (include "preview.database.enabled" .) .Values.database.seedFile }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,8 +6,8 @@ metadata:
   labels:
     {{- include "preview.labels" . | nindent 4 }}
 data:
-  seed.sql: |
-{{ .Files.Get "seed/seed.sql" | indent 4 }}
+  seed: |
+{{ .Files.Get (printf "seed/%s" .Values.database.seedFile) | indent 4 }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -28,25 +28,36 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: seed
-          image: {{ .Values.postgres.image }}
+          image: {{ include "preview.database.image" . }}
           command:
             - sh
             - -c
+            {{- if eq .Values.database.type "postgres" }}
             - |
-              until pg_isready -h postgres -U "$PGUSER" -d "$PGDATABASE"; do
+              until pg_isready -h database -U "$DB_USER" -d "$DB_NAME"; do
                 echo "waiting for postgres"; sleep 2
               done
-              psql -h postgres -U "$PGUSER" -d "$PGDATABASE" -v ON_ERROR_STOP=1 -f /seed/seed.sql
+              PGPASSWORD="$DB_PASSWORD" psql -h database -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -f /seed/seed
+            {{- else if eq .Values.database.type "mysql" }}
+            - |
+              until mysqladmin ping -h database --silent; do
+                echo "waiting for mysql"; sleep 2
+              done
+              mysql -h database -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < /seed/seed
+            {{- else if eq .Values.database.type "mongodb" }}
+            - |
+              until mongosh "mongodb://database:27017" --quiet --eval "db.adminCommand('ping')" >/dev/null 2>&1; do
+                echo "waiting for mongodb"; sleep 2
+              done
+              mongosh "mongodb://$DB_USER:$DB_PASSWORD@database:27017/$DB_NAME?authSource=admin" --quiet --file /seed/seed
+            {{- end }}
           env:
-            - name: PGUSER
-              valueFrom:
-                secretKeyRef: { name: postgres, key: username }
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef: { name: postgres, key: password }
-            - name: PGDATABASE
-              valueFrom:
-                secretKeyRef: { name: postgres, key: database }
+            - name: DB_USER
+              valueFrom: { secretKeyRef: { name: database, key: username } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: database, key: password } }
+            - name: DB_NAME
+              valueFrom: { secretKeyRef: { name: database, key: database } }
           resources:
             requests:
               cpu: 10m
