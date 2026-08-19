@@ -5,42 +5,53 @@ metadata:
   labels:
     {{- include "preview.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.app.replicaCount }}
   selector:
     matchLabels:
+      app.kubernetes.io/component: app
       {{- include "preview.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
+        app.kubernetes.io/component: app
         {{- include "preview.selectorLabels" . | nindent 8 }}
     spec:
+      {{- if .Values.image.pullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.image.pullSecret }}
+      {{- end }}
       containers:
         - name: app
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: {{ .Values.app.port }}
           env:
             - name: PR_NUMBER
               value: {{ .Values.prNumber | quote }}
             - name: GIT_SHA
               value: {{ .Values.gitSha | quote }}
-            - name: BG_COLOR
-              value: {{ .Values.bgColor | quote }}
-            {{- if .Values.postgres.enabled }}
+            - name: PORT
+              value: {{ .Values.app.port | quote }}
+            {{- if include "preview.database.enabled" . }}
             - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef: { name: postgres, key: url }
+              valueFrom: { secretKeyRef: { name: database, key: url } }
             {{- end }}
+            {{- range $key, $value := .Values.app.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- if .Values.app.healthPath }}
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: {{ .Values.app.healthPath }}
               port: http
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: {{ .Values.app.healthPath }}
               port: http
             initialDelaySeconds: 5
+          {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.app.resources | nindent 12 }}

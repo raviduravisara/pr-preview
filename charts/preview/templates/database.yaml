@@ -1,0 +1,103 @@
+{{- if include "preview.database.enabled" . }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace "database" }}
+{{- $password := "" }}
+{{- if $existing }}
+{{- $password = index $existing.data "password" | b64dec }}
+{{- else }}
+{{- $password = randAlphaNum 24 }}
+{{- end }}
+{{- $ctx := dict "Values" .Values "password" $password }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  username: {{ .Values.database.user | quote }}
+  password: {{ $password | quote }}
+  database: {{ .Values.database.name | quote }}
+  url: {{ include "preview.database.url" $ctx | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: database
+      {{- include "preview.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: database
+        {{- include "preview.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: database
+          image: {{ include "preview.database.image" . }}
+          ports:
+            - name: db
+              containerPort: {{ include "preview.database.port" . }}
+          env:
+            {{- if eq .Values.database.type "postgres" }}
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: database, key: username } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: database, key: password } }
+            - name: POSTGRES_DB
+              valueFrom: { secretKeyRef: { name: database, key: database } }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            {{- else if eq .Values.database.type "mysql" }}
+            - name: MYSQL_USER
+              valueFrom: { secretKeyRef: { name: database, key: username } }
+            - name: MYSQL_PASSWORD
+              valueFrom: { secretKeyRef: { name: database, key: password } }
+            - name: MYSQL_DATABASE
+              valueFrom: { secretKeyRef: { name: database, key: database } }
+            - name: MYSQL_RANDOM_ROOT_PASSWORD
+              value: "yes"
+            {{- else if eq .Values.database.type "mongodb" }}
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom: { secretKeyRef: { name: database, key: username } }
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: database, key: password } }
+            - name: MONGO_INITDB_DATABASE
+              valueFrom: { secretKeyRef: { name: database, key: database } }
+            {{- end }}
+          readinessProbe:
+            exec:
+              command: {{ include "preview.database.readinessCommand" . }}
+            initialDelaySeconds: 5
+            periodSeconds: 3
+          resources:
+            {{- toYaml .Values.database.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ if eq .Values.database.type "postgres" }}/var/lib/postgresql/data{{ else if eq .Values.database.type "mysql" }}/var/lib/mysql{{ else }}/data/db{{ end }}
+      volumes:
+        # Preview data is disposable; a PVC would outlive the namespace.
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database
+  labels:
+    {{- include "preview.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/component: database
+    {{- include "preview.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: db
+      port: {{ include "preview.database.port" . }}
+      targetPort: db
+{{- end }}

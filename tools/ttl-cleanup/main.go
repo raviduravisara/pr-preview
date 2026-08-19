@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	lastDeployAnnotation = "preview.ravidu.space/last-deploy"
+	lastDeployAnnotation = "preview.dev/last-deploy"
 	namespacePrefix      = "pr-"
 )
 

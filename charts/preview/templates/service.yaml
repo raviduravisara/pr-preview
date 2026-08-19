@@ -6,6 +6,7 @@ metadata:
     {{- include "preview.labels" . | nindent 4 }}
 spec:
   selector:
+    app.kubernetes.io/component: app
     {{- include "preview.selectorLabels" . | nindent 4 }}
   ports:
     - name: http

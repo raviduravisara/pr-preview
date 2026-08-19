@@ -1,53 +1,34 @@
 name: preview-deploy
 
+# This repository uses its own tool. The example guestbook is deployed for every
+# pull request through the reusable workflow in .github/workflows/preview.yml —
+# the same call any other repository would make.
+
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: preview-${{ github.event.number }}
   cancel-in-progress: true
 
+# A called workflow cannot request more than the caller holds, and this repository
+# defaults to read-only tokens.
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
 jobs:
-  deploy:
-    runs-on: self-hosted
-    permissions:
-      contents: read
-      pull-requests: write
-    defaults:
-      run:
-        shell: powershell
-    env:
-      PR: ${{ github.event.number }}
-      SHA: ${{ github.event.pull_request.head.sha }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build image
-        run: docker build -t pr-preview-app:pr-${{ env.PR }}-${{ env.SHA }} ./app
-
-      - name: Import image into cluster
-        run: k3d image import pr-preview-app:pr-${{ env.PR }}-${{ env.SHA }} -c preview
-
-      - name: Deploy
-        run: helm upgrade --install pr-${{ env.PR }} ./charts/preview --namespace pr-${{ env.PR }} --create-namespace --set prNumber=${{ env.PR }} --set gitSha=${{ env.SHA }} --set image.tag=pr-${{ env.PR }}-${{ env.SHA }} --wait --timeout 3m
-
-      - name: Stamp last-deploy time
-        run: kubectl annotate namespace pr-${{ env.PR }} preview.ravidu.space/last-deploy=$([DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")) --overwrite
-
-      - name: Comment preview URL
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: preview
-          message: |
-            **Preview environment is live**
-
-            https://pr-${{ env.PR }}-preview.ravidu.space
-
-            | | |
-            |---|---|
-            | Commit | `${{ env.SHA }}` |
-            | Namespace | `pr-${{ env.PR }}` |
-            | Updated | ${{ github.event.pull_request.updated_at }} |
-
-            Destroyed automatically when this PR closes.
+  preview:
+    uses: ./.github/workflows/preview.yml
+    with:
+      domain: ravidu.space
+      app-path: ./examples/guestbook
+      app-port: 8080
+      database: postgres
+      seed-file: guestbook-postgres.sql
+      # Use the chart from this PR's branch rather than main, so chart changes are
+      # exercised by the PR that makes them.
+      chart-ref: ${{ github.event.pull_request.head.sha }}
+    secrets: inherit

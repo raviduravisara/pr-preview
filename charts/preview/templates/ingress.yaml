@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "preview.labels" . | nindent 4 }}
 spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
   rules:
     - host: {{ include "preview.host" . }}
       http:

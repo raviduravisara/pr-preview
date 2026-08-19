@@ -1,30 +1,61 @@
+# Required at install time.
 prNumber: ""
-gitSha: dev
-bgColor: "#1a4d8f"
 
+# The application under preview. Any image, any port.
 image:
-  repository: pr-preview-app
-  tag: dev
+  repository: ""
+  tag: ""
   pullPolicy: IfNotPresent
+  # Name of a pre-created imagePullSecret, for private registries.
+  pullSecret: ""
 
-replicaCount: 1
+app:
+  port: 8080
+  replicaCount: 1
+  # Path probed for readiness and liveness. Set to "" to disable probes for
+  # apps that expose no health endpoint.
+  healthPath: /healthz
+  # Extra environment variables passed straight to the container.
+  env: {}
+  # Values injected automatically: PR_NUMBER, GIT_SHA, and DATABASE_URL when a
+  # database is enabled.
+  resources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      memory: 128Mi
+
+gitSha: dev
 
 ingress:
-  # Full host is <prefix><prNumber><suffix>.<domain>
-  # Single subdomain level keeps it inside Cloudflare's free wildcard certificate.
-  domain: ravidu.space
+  # Host becomes <prefix><prNumber><suffix>.<domain>
+  # A single subdomain level keeps it inside a free wildcard certificate.
+  # Leave domain empty to use sslip.io on hostIP, which needs no domain and no DNS.
+  domain: ""
+  hostIP: ""
   prefix: pr-
   suffix: -preview
+  className: ""
 
-resources:
-  requests:
-    cpu: 10m
-    memory: 16Mi
-  limits:
-    memory: 64Mi
+# One database per preview. Set type to postgres, mysql, mongodb, or none.
+# Credentials are generated at install time and preserved across upgrades.
+database:
+  type: none
+  user: preview
+  name: preview
+  # Overrides the default image for the chosen type.
+  image: ""
+  # SQL or JS run once the database is accepting connections. Files are read
+  # from the chart's seed/ directory.
+  seedFile: ""
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
 
-# Ceiling for one preview environment. Sized with headroom over the app + postgres
-# requests below so the seed job, which runs alongside both, still fits.
 quota:
   enabled: true
   pods: 10
@@ -33,21 +64,8 @@ quota:
     memory: 512Mi
   limits:
     memory: 1Gi
-  # Applied to any container that does not set its own.
   defaultRequests:
     cpu: 10m
     memory: 16Mi
   defaultLimits:
     memory: 128Mi
-
-postgres:
-  enabled: true
-  image: postgres:17-alpine
-  user: preview
-  database: preview
-  resources:
-    requests:
-      cpu: 25m
-      memory: 64Mi
-    limits:
-      memory: 256Mi

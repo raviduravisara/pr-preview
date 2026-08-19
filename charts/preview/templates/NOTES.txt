@@ -1,8 +1,11 @@
 Preview environment for PR #{{ .Values.prNumber }} is deploying.
 
-  URL:       http://{{ include "preview.host" . }}:8080
+  URL:       https://{{ include "preview.host" . }}
   Namespace: {{ .Release.Namespace }}
   Image:     {{ .Values.image.repository }}:{{ .Values.image.tag }}
+{{- if include "preview.database.enabled" . }}
+  Database:  {{ .Values.database.type }}
+{{- end }}
 
 Check status:
   kubectl get pods -n {{ .Release.Namespace }}
