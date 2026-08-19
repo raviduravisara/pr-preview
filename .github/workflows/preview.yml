@@ -25,9 +25,14 @@ on:
         default: ""
         type: string
       app-path:
-        description: Directory containing the Dockerfile
+        description: Build context passed to docker build
         required: false
         default: ./
+        type: string
+      dockerfile:
+        description: Path to the Dockerfile, relative to the repository root. Defaults to app-path/Dockerfile.
+        required: false
+        default: ""
         type: string
       app-port:
         description: Port the application listens on
@@ -119,7 +124,7 @@ jobs:
           password: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        run: docker build -t ${{ steps.image.outputs.repo }}:${{ steps.image.outputs.tag }} ${{ inputs.app-path }}
+        run: docker build -t ${{ steps.image.outputs.repo }}:${{ steps.image.outputs.tag }} ${{ inputs.dockerfile != '' && format('-f {0} ', inputs.dockerfile) || '' }}${{ inputs.app-path }}
 
       - name: Push image
         if: inputs.registry != ''
