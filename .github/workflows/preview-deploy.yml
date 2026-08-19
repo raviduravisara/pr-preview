@@ -21,4 +21,7 @@ jobs:
       app-port: 8080
       database: postgres
       seed-file: guestbook-postgres.sql
+      # Use the chart from this PR's branch rather than main, so chart changes are
+      # exercised by the PR that makes them.
+      chart-ref: ${{ github.event.pull_request.head.sha }}
     secrets: inherit
